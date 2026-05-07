@@ -23,6 +23,7 @@ class GameState:
     mistakes: int = 0
     max_mistakes: int = 3
     bullets_loaded: int = 0
+    roulette_survivals: int = 0
     chambers: list = field(default_factory=lambda: [False] * 6)
     game_active: bool = False
     is_frozen: bool = False

@@ -17,6 +17,7 @@ from .models import AssetStore ,GameState ,LayoutState ,MenuState ,MultiplayerSt
 from .network import get_local_ip ,read_json_lines ,send_json 
 from .paths import image_path 
 from .texts import MULTIPLAYER_RULES ,PREDEFINED_TEXTS ,format_article_text 
+from .view import GameView
 
 settings =SettingsState ()
 game =GameState ()
@@ -30,6 +31,7 @@ widgets =WidgetStore ()
 #Pygame音效
 audio =AudioManager ()
 leaderboard = LeaderboardStore()
+view =None 
 
 #音量變數(預設100%)
 settings .music_vol =1.0 
@@ -406,44 +408,11 @@ def initialize_game (article_indices =None ):
     #UI與左輪手槍
 def draw_revolver (rotation_index =0 ):
 # Draw the roulette cylinder HUD.
-    widgets .main_canvas .delete ("revolver")
-    if not game .roulette_revealed :return 
-
-    cx =layout .revolver_cx 
-    cy =layout .base_y -45 
-
-    widgets .main_canvas .create_oval (cx -28 ,cy -28 ,cx +28 ,cy +28 ,fill ="#1a1a1a",outline ="#0a0a0a",width =2 ,tags ="revolver")
-    widgets .main_canvas .create_oval (cx -4 ,cy -4 ,cx +4 ,cy +4 ,fill ="#0a0a0a",tags ="revolver")
-
-    for i in range (6 ):
-        angle =math .radians (i *60 -90 )
-        bx =cx +16 *math .cos (angle )
-        by =cy +16 *math .sin (angle )
-
-        logical_index =(i -rotation_index )%6 
-        is_loaded =game .chambers [logical_index ]
-
-        widgets .main_canvas .create_oval (bx -6 ,by -6 ,bx +6 ,by +6 ,fill ="#050505",outline ="#2a2a2a",tags ="revolver")
-        if is_loaded :
-            widgets .main_canvas .create_oval (bx -4 ,by -4 ,bx +4 ,by +4 ,fill ="#aa1111",outline ="#ff4444",tags ="revolver")
+    view .draw_revolver (rotation_index )
 
 def draw_lives ():
 # Draw the current mistake boxes.
-    widgets .main_canvas .delete ("lives")
-    cy =layout .base_y -45 
-    for i in range (game .max_mistakes ):
-        cx =layout .first_box_cx +(i *40 )
-        if i <game .mistakes :
-            bg_color ="#550000"
-            outline_color ="#880000"
-            char ="X"
-        else :
-            bg_color ="#111111"
-            outline_color ="#5a4a36"
-            char =""
-        widgets .main_canvas .create_rectangle (cx -16 ,cy -16 ,cx +16 ,cy +16 ,fill =bg_color ,outline =outline_color ,width =2 ,tags ="lives")
-        if char :
-            widgets .main_canvas .create_text (cx ,cy ,text =char ,fill ="#ff4444",font =("Courier New",18 ,"bold"),tags ="lives")
+    view .draw_lives ()
 
 def update_hud ():
 # Refresh the roulette and lives HUD.
@@ -453,29 +422,7 @@ def update_hud ():
 
 def draw_feedback_hud ():
 # Draw combo, judgement, and multiplayer progress text.
-    widgets .main_canvas .delete ("feedback_hud")
-    combo_color ="#ffd54a"if game .current_combo >0 else "#8e8a80"
-    widgets .main_canvas .create_text (
-    layout .center_x ,
-    max (30 ,layout .base_y -70 ),
-    text =f"{game .last_judgement }   Combo x{game .current_combo }",
-    font =("Courier New",20 ,"bold"),
-    fill =combo_color ,
-    tags ="feedback_hud"
-    )
-    if multiplayer .multiplayer_mode and multiplayer .remote_progress :
-        progress_lines =[]
-        for name ,percent in multiplayer .remote_progress .items ():
-            progress_lines .append (f"{name }: {percent :>5.1f}%")
-        widgets .main_canvas .create_text (
-        layout .screen_w -120 ,
-        max (90 ,layout .base_y +10 ),
-        text ="\n".join (progress_lines ),
-        font =("Courier New",14 ,"bold"),
-        fill ="#72d477",
-        justify ="right",
-        tags ="feedback_hud"
-        )
+    view .draw_feedback_hud ()
 
 def judge_hit_timing ():
 # Grade the latest correct keypress by rhythm timing.
@@ -585,14 +532,7 @@ def run_timer ():
     #旋轉文字圖片(時鐘、名牌)
 def update_clock_display ():
 # Update the clock image text.
-    mins =game .time_left //60 
-    secs =game .time_left %60 
-    time_str =f"{mins :02d}:{secs :02d}"
-
-    widgets .main_canvas .delete ("clock_text")
-    assets .clock_text_photo =create_rotated_text_image (time_str ,layout .clock_font_size ,"#ffffff",2 ,font_file ="courbd.ttf")
-    widgets .main_canvas .create_image (layout .clock_text_x ,layout .clock_text_y ,image =assets .clock_text_photo ,anchor ="center",tags ="clock_text")
-
+    view .update_clock_display ()
     if menu .in_ingame_menu :
         widgets .main_canvas .tag_raise ("ingame_menu_bg")
         widgets .main_canvas .tag_raise ("ingame_btn")
@@ -898,39 +838,11 @@ def blink_screen_exit_prompt (visible ):
 
 def show_stats_on_screen (status_type ):
 # Render match stats on the monitor.
-    widgets .screen_text .config (state =tk .NORMAL )
-    widgets .screen_text .delete ("1.0",tk .END )
-
     summary =get_match_summary ()
-    avg_wpm =summary ["avg_wpm"]
-    max_wpm =summary ["max_wpm"]
     last_wpm =stats .wpm_list [-1 ]if stats .wpm_list else 0 
-    avg_acc =summary ["avg_acc"]
     max_acc =max (stats .acc_list )if stats .acc_list else 0.0 
     last_acc =stats .acc_list [-1 ]if stats .acc_list else 0.0 
-    rank =summary ["rank"]
-
-    stats_text =f"""
-   ---------------------------------------
-   |  Metric  | Average |  Max  |  Last  |
-   ---------------------------------------
-   | Accuracy |{avg_acc :>6.1f}% |{max_acc :>6.1f}% |{last_acc :>6.1f}% |
-   ---------------------------------------
-   |   WPM    |{avg_wpm :^7} |{max_wpm :^7} |{last_wpm :^7} |
-   ---------------------------------------
-
-   Char: {stats .total_chars_typed }
-   Mistakes: {stats .total_mistakes }
-   Typing time: {stats .total_typing_time }s
-   Roulettes: {game .bullets_loaded }
-   Best Combo: {game .max_combo }
-   Rank: {rank }
-"""
-    widgets .screen_text .insert (tk .END ,"\n   Result: ")
-    if status_type =="Won":widgets .screen_text .insert (tk .END ," Won ","tag_won")
-    else :widgets .screen_text .insert (tk .END ," Lost ","tag_dead")
-    widgets .screen_text .config (state =tk .DISABLED )
-    typewriter_insert (stats_text ,0 )
+    view .show_stats_on_screen (status_type ,summary ,last_wpm ,max_acc ,last_acc )
 
 def get_match_summary():
 # Calculate aggregate stats for score display and ranking.
@@ -984,24 +896,7 @@ def save_leaderboard_result(status_type):
 def transition_monitor_to_center ():
 # Move the monitor into the ending view.
     try :
-        scale =3 
-        term_monitor_w =int (layout .monitor_w *scale )
-        term_monitor_h =int (layout .monitor_h *scale )
-        img_monitor =Image .open (image_path ("screen.png")).resize ((term_monitor_w ,term_monitor_h ))
-        assets .term_monitor_photo =ImageTk .PhotoImage (img_monitor )
-        widgets .main_canvas .itemconfigure ("monitor",image =assets .term_monitor_photo )
-        new_monitor_y =layout .screen_h //2 +term_monitor_h //2 +250 
-        widgets .main_canvas .coords ("monitor",layout .center_x ,new_monitor_y )
-        term_screen_w =int (layout .inner_screen_w *scale )
-        term_screen_h =int (layout .inner_screen_h *scale )
-        new_screen_text_y =new_monitor_y -int (term_monitor_h *0.58 )
-
-        widgets .main_canvas .itemconfigure (widgets .screen_text_window_id ,state ="normal")
-        widgets .main_canvas .itemconfigure (widgets .screen_text_window_id ,width =term_screen_w ,height =term_screen_h )
-        widgets .main_canvas .coords (widgets .screen_text_window_id ,layout .center_x ,new_screen_text_y )
-        widgets .screen_text .config (font =("Courier New",25 ,"bold"))
-        widgets .main_canvas .tag_raise ("monitor")
-        widgets .main_canvas .tag_raise (widgets .screen_text_window_id )
+        view .transition_monitor_to_center ()
     except Exception as e :print ("螢幕放大轉場錯誤:",e )
 
     #遊戲獲勝
@@ -1155,55 +1050,11 @@ def set_sfx_vol (val ):
 
 def show_options (from_state ):
 # Display the options menu.
-    menu .in_options_menu =True 
-    menu .options_previous_state =from_state 
-
-    if from_state =="main":
-        widgets .main_canvas .itemconfigure ("menu_btn",state ="hidden")
-        try :widgets .main_canvas .itemconfigure (widgets .menu_screen_text_window_id ,state ="hidden")
-        except :pass 
-    elif from_state =="ingame":
-        widgets .main_canvas .itemconfigure ("ingame_btn",state ="hidden")
-
-    cx =layout .screen_w //2 
-    cy =layout .screen_h //2 
-    box_w =600 
-    box_h =300 
-
-    widgets .main_canvas .create_rectangle (cx -box_w /2 ,cy -box_h /2 ,cx +box_w /2 ,cy +box_h /2 ,
-    fill ="#050505",outline ="#FF8C00",width =3 ,tags ="options_ui")
-
-    widgets .main_canvas .create_text (cx -180 ,cy -40 ,text ="Music",font =("Courier New",25 ,"bold"),fill ="#ffffff",anchor ="w",tags ="options_ui")
-    widgets .main_canvas .create_text (cx -180 ,cy +40 ,text ="Sound",font =("Courier New",25 ,"bold"),fill ="#ffffff",anchor ="w",tags ="options_ui")
-
-    menu .music_scale_widget =tk .Scale (widgets .main_canvas ,from_ =0 ,to =100 ,orient ="horizontal",
-    bg ="#050505",fg ="#FF8C00",font =("Courier New",15 ,"bold"),
-    troughcolor ="#222222",activebackground ="#FF8C00",
-    highlightthickness =0 ,bd =0 ,length =200 ,show =0 ,command =set_music_vol )
-    menu .music_scale_widget .set (int (settings .music_vol *100 ))
-    widgets .main_canvas .create_window (cx +80 ,cy -40 ,window =menu .music_scale_widget ,tags ="options_ui")
-
-    menu .sfx_scale_widget =tk .Scale (widgets .main_canvas ,from_ =0 ,to =100 ,orient ="horizontal",
-    bg ="#050505",fg ="#FF8C00",font =("Courier New",15 ,"bold"),
-    troughcolor ="#222222",activebackground ="#FF8C00",
-    highlightthickness =0 ,bd =0 ,length =200 ,show =0 ,command =set_sfx_vol )
-    menu .sfx_scale_widget .set (int (settings .sfx_vol *100 ))
-    widgets .main_canvas .create_window (cx +80 ,cy +40 ,window =menu .sfx_scale_widget ,tags ="options_ui")
-
-    create_canvas_button (cx ,cy +100 ,200 ,50 ,"Back",close_options ,ui_tag ="options_ui")
+    view .show_options (from_state )
 
 def close_options ():
 # Close the options menu.
-    menu .in_options_menu =False 
-    widgets .main_canvas .delete ("options_ui")
-    destroy_options_widgets ()
-
-    if menu .options_previous_state =="main":
-        widgets .main_canvas .itemconfigure ("menu_btn",state ="normal")
-        try :widgets .main_canvas .itemconfigure (widgets .menu_screen_text_window_id ,state ="normal")
-        except :pass 
-    elif menu .options_previous_state =="ingame":
-        widgets .main_canvas .itemconfigure ("ingame_btn",state ="normal")
+    view .close_options ()
 
         #遊戲選單與轉場
 def exit_game (event =None ):
@@ -1229,94 +1080,28 @@ def handle_global_escape (event ):
 
 def create_canvas_button (cx ,cy ,width ,height ,text_str ,action ,ui_tag ="menu_btn"):
 # Create a Canvas button.
-    bg_id =widgets .main_canvas .create_rectangle (
-    cx -width /2 ,cy -height /2 ,cx +width /2 ,cy +height /2 ,
-    fill ="#000000",outline ="",tags =ui_tag 
-    )
-    txt_id =widgets .main_canvas .create_text (
-    cx ,cy ,text =text_str ,font =("Courier New",35 ,"bold"),
-    fill ="#ffffff",tags =ui_tag 
-    )
-    def on_enter (e ):
-    # Apply button hover styling.
-        widgets .main_canvas .itemconfigure (bg_id ,fill ="#FF8C00")
-        widgets .main_canvas .itemconfigure (txt_id ,fill ="#FFD000")
-    def on_leave (e ):
-    # Restore button normal styling.
-        widgets .main_canvas .itemconfigure (bg_id ,fill ="#000000")
-        widgets .main_canvas .itemconfigure (txt_id ,fill ="#ffffff")
-    def on_click (e ):
-    # Run the button action.
-        action ()
-    for item_id in (bg_id ,txt_id ):
-        widgets .main_canvas .tag_bind (item_id ,"<Enter>",on_enter )
-        widgets .main_canvas .tag_bind (item_id ,"<Leave>",on_leave )
-        widgets .main_canvas .tag_bind (item_id ,"<Button-1>",on_click )
+    view .create_canvas_button (cx ,cy ,width ,height ,text_str ,action ,ui_tag )
 
 def show_multiplayer_menu ():
 # Display multiplayer menu options.
-    widgets .main_canvas .delete ("menu_btn","multiplayer_ui")
-    try :widgets .main_canvas .itemconfigure (widgets .menu_screen_text_window_id ,state ="hidden")
-    except :pass 
-    cx =layout .screen_w *0.25 
-    widgets .main_canvas .create_text (cx ,layout .screen_h *0.35 ,text ="MULTIPLAYER",font =("Courier New",42 ,"bold"),fill ="#FF8C00",tags ="multiplayer_ui")
-    widgets .main_canvas .create_text (cx ,layout .screen_h *0.48 ,text =MULTIPLAYER_RULES ,font =("Courier New",13 ,"bold"),fill ="#d9d0c0",justify ="left",width =720 ,tags ="multiplayer_ui")
-    create_canvas_button (cx ,layout .screen_h *0.68 ,500 ,70 ,"Host Game",start_host_lobby ,ui_tag ="multiplayer_ui")
-    create_canvas_button (cx ,layout .screen_h *0.78 ,500 ,70 ,"Join Game",join_host_lobby ,ui_tag ="multiplayer_ui")
-    create_canvas_button (cx ,layout .screen_h *0.88 ,500 ,70 ,"Back",show_main_menu ,ui_tag ="multiplayer_ui")
+    view .show_multiplayer_menu ()
 
 def update_lobby_status ():
 # Refresh host lobby player text.
-    if multiplayer .multiplayer_status_text_id :
-        players =[multiplayer .player_name ]+[client ["name"]for client in multiplayer .connected_clients ]
-        status =f"Hosting on {get_local_ip ()}:{MULTIPLAYER_PORT }\nPlayers: {len (players )}\n\n"+"\n".join (f">>> {name }"for name in players )
-        widgets .main_canvas .itemconfigure (multiplayer .multiplayer_status_text_id ,text =status )
+    view .update_lobby_status ()
 
 def show_multiplayer_lobby (status ):
 # Show the host lobby screen.
-    widgets .main_canvas .delete ("menu_btn","multiplayer_ui","lobby_ui")
-    try :widgets .main_canvas .itemconfigure (widgets .menu_screen_text_window_id ,state ="hidden")
-    except :pass 
-    cx =layout .screen_w *0.25 
-    widgets .main_canvas .create_text (cx ,layout .screen_h *0.30 ,text ="PRIVATE LOBBY",font =("Courier New",42 ,"bold"),fill ="#FF8C00",tags ="lobby_ui")
-    multiplayer .multiplayer_status_text_id =widgets .main_canvas .create_text (cx ,layout .screen_h *0.46 ,text =status ,font =("Courier New",18 ,"bold"),fill ="#72d477",justify ="center",width =760 ,tags ="lobby_ui")
-    create_canvas_button (cx ,layout .screen_h *0.66 ,500 ,70 ,"Start Match",host_start_multiplayer_match ,ui_tag ="lobby_ui")
-    create_canvas_button (cx ,layout .screen_h *0.78 ,500 ,70 ,"Back",lambda :[stop_multiplayer_network (),show_multiplayer_menu ()],ui_tag ="lobby_ui")
+    view .show_multiplayer_lobby (status )
     update_lobby_status ()
 
 def show_waiting_lobby (status ):
 # Show the client waiting screen.
-    widgets .main_canvas .delete ("menu_btn","multiplayer_ui","lobby_ui")
-    try :widgets .main_canvas .itemconfigure (widgets .menu_screen_text_window_id ,state ="hidden")
-    except :pass 
-    cx =layout .screen_w *0.25 
-    widgets .main_canvas .create_text (cx ,layout .screen_h *0.32 ,text ="WAITING ROOM",font =("Courier New",42 ,"bold"),fill ="#FF8C00",tags ="lobby_ui")
-    multiplayer .multiplayer_status_text_id =widgets .main_canvas .create_text (cx ,layout .screen_h *0.52 ,text =status ,font =("Courier New",17 ,"bold"),fill ="#72d477",justify ="center",width =760 ,tags ="lobby_ui")
-    create_canvas_button (cx ,layout .screen_h *0.78 ,500 ,70 ,"Back",lambda :[stop_multiplayer_network (),show_multiplayer_menu ()],ui_tag ="lobby_ui")
+    view .show_waiting_lobby (status )
 
 def show_leaderboard_menu():
     # Display the saved local leaderboard.
-    widgets.main_canvas.delete("menu_btn", "leaderboard_ui")
-    try:
-        widgets.main_canvas.itemconfigure(widgets.menu_screen_text_window_id, state="hidden")
-    except:
-        pass
-    cx = layout.screen_w * 0.25
-    widgets.main_canvas.create_text(cx, layout.screen_h * 0.35, text="LEADERBOARD", font=("Courier New", 42, "bold"), fill="#FF8C00", tags="leaderboard_ui")
-    rows = leaderboard.top_entries(8)
-    if rows:
-        lines = [" Rank Player        Result WPM  ACC   Date", " ---------------------------------------------"]
-        for i, row in enumerate(rows, 1):
-            player = str(row.get("player", "Player"))[:12]
-            lines.append(
-                f" {i:>2}.  {player:<12} {row.get('result', 'Lost'):<5} "
-                f"{row.get('avg_wpm', 0):>3}  {row.get('avg_acc', 0):>5.1f}%  {row.get('created_at', '')}"
-            )
-        board_text = "\n".join(lines)
-    else:
-        board_text = "No results yet.\nFinish a match to create your first record."
-    widgets.main_canvas.create_text(cx, layout.screen_h * 0.50, text=board_text, font=("Courier New", 16, "bold"), fill="#72d477", justify="left", width=780, tags="leaderboard_ui")
-    create_canvas_button(cx, layout.screen_h * 0.78, 500, 70, "Back", show_main_menu, ui_tag="leaderboard_ui")
+    view .show_leaderboard_menu (leaderboard .top_entries (8 ))
 
 def toggle_ingame_menu ():
 # Open or close the in-game menu.
@@ -1405,222 +1190,64 @@ def fade_in_game (step ):
 def start_game_from_menu ():
 # Build widgets for a match.
     game .in_menu =False 
-    widgets .main_canvas .delete ("menu_ui","menu_btn","options_ui")
     destroy_options_widgets ()
-    widgets .main_canvas .delete ("all")
-
-    overlay =Image .new ("RGBA",(layout .screen_w ,layout .screen_h ),(0 ,0 ,0 ,255 ))
-    assets .fade_photo =ImageTk .PhotoImage (overlay )
-
-    widgets .main_canvas .config (bg ="#111111")
-    if assets .bg_photo :widgets .main_canvas .create_image (0 ,0 ,image =assets .bg_photo ,anchor ="nw",tags ="bg")
-    if assets .table_photo :widgets .main_canvas .create_image (0 ,layout .screen_h -int (layout .screen_h *0.25 ),image =assets .table_photo ,anchor ="nw",tags ="table")
-    if assets .monitor_photo :widgets .main_canvas .create_image (layout .screen_w //2 ,layout .screen_h -150 ,image =assets .monitor_photo ,anchor ="s",tags ="monitor")
-    if assets .kb_photo :widgets .main_canvas .create_image (layout .screen_w //2 ,layout .screen_h -10 ,image =assets .kb_photo ,anchor ="s",tags ="kb")
-
-    if assets .clock_photo :
-        cw ,ch =Image .open (image_path ("clock.png")).size 
-        clock_x =-int (layout .screen_w *0.05 )+90 
-        clock_y =(layout .screen_h -int (layout .screen_h *0.25 ))-int (int (layout .screen_w *0.2 )*(ch /cw )*0.5 )
-        widgets .main_canvas .create_image (clock_x ,clock_y ,image =assets .clock_photo ,anchor ="nw",tags ="clock")
-        layout .clock_text_x =clock_x +int (layout .screen_w *0.2 )*0.52 
-        layout .clock_text_y =clock_y +int (int (layout .screen_w *0.2 )*(ch /cw ))*0.52 
-        layout .clock_font_size =int (int (int (layout .screen_w *0.2 )*(ch /cw ))*0.3 )
-
-    if assets .rank_photo :
-        rw ,rh =Image .open (image_path ("rank.png")).size 
-        rank_w =int (layout .screen_w *0.15 )
-        rank_h =int (rank_w *(rh /rw ))
-        rank_x =layout .screen_w -rank_w +int (rank_w *0.09 )
-        rank_y =(layout .screen_h -int (layout .screen_h *0.25 ))-int (rank_h *0.6 )
-        widgets .main_canvas .create_image (rank_x ,rank_y ,anchor ="nw",image =assets .rank_photo ,tags ="rank")
-        rank_text_x =rank_x +rank_w *0.52 
-        rank_text_y =rank_y +rank_h *0.52 
-        layout .rank_font_size =int (rank_h *0.55 )
-        if assets .rank_text_photo :widgets .main_canvas .create_image (rank_text_x ,rank_text_y ,image =assets .rank_text_photo ,anchor ="center",tags ="rank_text")
-
-    widgets .text_display =tk .Text (widgets .main_canvas ,font =("Courier New",20 ,"bold"),bg ="#161311",bd =0 ,
-    highlightthickness =0 ,width =TEXT_WIDTH ,height =6 ,
-    spacing1 =2 ,spacing2 =0 ,spacing3 =2 ,
-    padx =25 ,pady =10 ,insertbackground ="#ffffff",insertwidth =4 )
-    widgets .root .update_idletasks ()
-    tw =widgets .text_display .winfo_reqwidth ()
-    layout .left_edge =layout .center_x -(tw //2 )
-    my_font =tkFont .Font (family ="Courier New",size =20 ,weight ="bold")
-    char_width =my_font .measure ("A")
-    real_text_left_x =layout .left_edge +25 +(START_INDEX *char_width )
-    layout .first_box_cx =real_text_left_x +16 
-    layout .revolver_cx =real_text_left_x -38 
-
-    widgets .text_window_id =widgets .main_canvas .create_window (layout .center_x ,layout .base_y ,window =widgets .text_display ,anchor ="n",state ="hidden")
-
-    widgets .text_display .tag_config ("correct",foreground ="#72d477")
-    widgets .text_display .tag_config ("pending",foreground ="#A07431")
-    widgets .text_display .tag_config ("error",foreground ="#ff4444")
-    widgets .text_display .tag_config ("wrong_bg",background ="#770000")
-    widgets .text_display .tag_config ("current_line_bg",background ="#423d3a")
-    widgets .text_display .tag_config ("loading_bar_bg",foreground ="#222222")
-    widgets .text_display .tag_config ("loading_bar_fill",foreground ="#d28c00")
-
-    current_tags =widgets .text_display .bindtags ()
-    new_tags =tuple (tag for tag in current_tags if tag !="Text")
-    widgets .text_display .bindtags (new_tags )
-
-    widgets .screen_text =tk .Text (widgets .main_canvas ,font =("Courier New",8 ,"bold"),bg ="#050505",fg ="#72d477",bd =0 ,
-    highlightthickness =0 ,padx =10 ,pady =10 ,state =tk .DISABLED )
-    widgets .screen_text .bindtags (new_tags )
-    widgets .screen_text .tag_config ("tag_won",background ="#72d477",foreground ="#000000")
-    widgets .screen_text .tag_config ("tag_dead",background ="#ff4444",foreground ="#000000")
-
-    widgets .screen_text_window_id =widgets .main_canvas .create_window (
-    layout .center_x ,layout .screen_h -150 -int (layout .monitor_h *0.58 ),
-    window =widgets .screen_text ,anchor ="center",width =layout .inner_screen_w ,height =layout .inner_screen_h 
-    )
-
-    widgets .main_canvas .create_text (layout .center_x ,layout .screen_h *0.95 ,text ="--點擊畫面任意位置離開--",
-    font =("Courier New",16 ,"bold"),fill ="#ffffff",tags ="exit_prompt",state ="hidden")
-    widgets .main_canvas .create_image (0 ,0 ,image =assets .fade_photo ,anchor ="nw",tags ="fade_overlay")
-    widgets .text_display .bind ("<Key>",handle_keypress )
-    widgets .root .bind ("<FocusIn>",lambda e :widgets .text_display .focus_set ()if game .game_active else None )
-
+    view .build_game_scene ()
     update_hud ()
     initialize_game (multiplayer .pending_article_indices )
 
 def show_main_menu ():
 # Build the main menu screen.
-    widgets .main_canvas .delete ("all")
-    widgets .main_canvas .config (bg ="#000000")
-    audio .play_music_loop ()
-    if assets .table_photo :widgets .main_canvas .create_image (0 ,layout .screen_h -int (layout .screen_h *0.25 ),image =assets .table_photo ,anchor ="nw",tags ="menu_ui")
-
-    menu_scale =2 
-    menu_m_w =int (layout .monitor_w *menu_scale )
-    menu_m_h =int (layout .monitor_h *menu_scale )
-
-    try :
-        img_monitor_menu =Image .open (image_path ("screen.png")).resize ((menu_m_w ,menu_m_h ))
-        assets .menu_monitor_photo =ImageTk .PhotoImage (img_monitor_menu )
-        menu_monitor_x =layout .screen_w *0.72 
-        widgets .main_canvas .create_image (menu_monitor_x ,layout .screen_h +10 ,image =assets .menu_monitor_photo ,anchor ="s",tags ="menu_ui")
-
-        widgets .menu_screen_text =tk .Text (widgets .main_canvas ,font =("Courier New",28 ,"bold"),bg ="#050505",fg ="#72d477",bd =0 ,
-        highlightthickness =0 ,padx =10 ,pady =10 ,state =tk .NORMAL )
-        menu_tags =widgets .menu_screen_text .bindtags ()
-        widgets .menu_screen_text .bindtags (tuple (t for t in menu_tags if t !="Text"))
-        widgets .menu_screen_text .insert (tk .END ,">>> TYPE AS FAST AS YOU CAN!\n\n\n>>> Or\n\n\n>>> You will DIE!!!\n\n\n>>> Good Luck!!!")
-        widgets .menu_screen_text .config (state =tk .DISABLED )
-
-        m_inner_w =int (layout .inner_screen_w *menu_scale )
-        m_inner_h =int (layout .inner_screen_h *menu_scale )
-        menu_screen_text_y =(layout .screen_h +10 )-int (menu_m_h *0.58 )
-
-        widgets .menu_screen_text_window_id =widgets .main_canvas .create_window (
-        menu_monitor_x ,menu_screen_text_y ,
-        window =widgets .menu_screen_text ,anchor ="center",width =m_inner_w ,height =m_inner_h ,state ="hidden"
-        )
-    except Exception as e :print ("Menu Monitor loading error:",e )
-
-    title_font =tkFont .Font (family ="Courier New",size =70 ,weight ="bold")
-    char_w =title_font .measure ("A")
-    char_h =title_font .metrics ("linespace")
-
-    start_x =(layout .screen_w *0.25 )-(14 *char_w )/2 
-    title_y =layout .screen_h *0.25 
-
-    widgets .main_canvas .create_rectangle (start_x ,title_y -char_h /2 ,start_x +char_w ,title_y +char_h /2 ,fill ="#FF3737",outline ="",tags ="menu_ui")
-    widgets .main_canvas .create_text (start_x ,title_y ,text ="F",font =("Courier New",70 ,"bold"),fill ="#FF8C00",anchor ="w",tags ="menu_ui")
-    start_x +=char_w 
-    widgets .main_canvas .create_text (start_x ,title_y ,text ="inal ",font =("Courier New",70 ,"bold"),fill ="#FF8C00",anchor ="w",tags ="menu_ui")
-    start_x +=char_w *5 
-    widgets .main_canvas .create_rectangle (start_x ,title_y -char_h /2 ,start_x +char_w ,title_y +char_h /2 ,fill ="#FF3737",outline ="",tags ="menu_ui")
-    widgets .main_canvas .create_text (start_x ,title_y ,text ="S",font =("Courier New",70 ,"bold"),fill ="#FF8C00",anchor ="w",tags ="menu_ui")
-    start_x +=char_w 
-    widgets .main_canvas .create_text (start_x ,title_y ,text ="entence",font =("Courier New",70 ,"bold"),fill ="#FF8C00",anchor ="w",tags ="menu_ui")
-
-    btn_width =500 
-    btn_height =80 
-    create_canvas_button (layout .screen_w *0.25 ,layout .screen_h *0.40 ,btn_width ,btn_height ,"Single Player",play_btn_clicked ,ui_tag ="menu_btn")
-    create_canvas_button (layout .screen_w *0.25 ,layout .screen_h *0.51 ,btn_width ,btn_height ,"Multiplayer",show_multiplayer_menu ,ui_tag ="menu_btn")
-    create_canvas_button (layout .screen_w *0.25 ,layout .screen_h *0.62 ,btn_width ,btn_height ,"Leaderboard",show_leaderboard_menu ,ui_tag ="menu_btn")
-    create_canvas_button (layout .screen_w *0.25 ,layout .screen_h *0.73 ,btn_width ,btn_height ,"Options",lambda :show_options ("main"),ui_tag ="menu_btn")
-    create_canvas_button (layout .screen_w *0.25 ,layout .screen_h *0.84 ,btn_width ,btn_height ,"Exit",exit_game ,ui_tag ="menu_btn")
+    view .show_main_menu ()
 
 def main ():
 # Create the window and run the app.
-
-    widgets .root =tk .Tk ()
-    widgets .root .title ("Final Sentence")
-    widgets .root .attributes ("-fullscreen",True )
-
-    widgets .root .update_idletasks ()
-    layout .screen_w =widgets .root .winfo_screenwidth ()
-    layout .screen_h =widgets .root .winfo_screenheight ()
-    layout .center_x =layout .screen_w //2 
-    layout .base_y =int (layout .screen_h *0.20 )
-
-    layout .monitor_w =int (layout .screen_w *0.5 )
-    layout .monitor_h =int (layout .screen_h *0.45 )
-    layout .inner_screen_w =int (layout .monitor_w *0.35 )
-    layout .inner_screen_h =int (layout .monitor_h *0.51 )
-
-    widgets .main_canvas =tk .Canvas (widgets .root ,width =layout .screen_w ,height =layout .screen_h ,highlightthickness =0 ,bg ="#111111",bd =0 )
-    widgets .main_canvas .pack (fill =tk .BOTH ,expand =True )
-
+    global view 
+    view =GameView (
+    game ,
+    menu ,
+    multiplayer ,
+    stats ,
+    layout ,
+    assets ,
+    widgets ,
+    settings ,
+    leaderboard ,
+    audio ,
+    {
+    "global_click":handle_global_click ,
+    "global_escape":handle_global_escape ,
+    "keypress":handle_keypress ,
+    "single_player":play_btn_clicked ,
+    "show_multiplayer_menu":show_multiplayer_menu ,
+    "show_main_menu":show_main_menu ,
+    "show_options":show_options ,
+    "close_options":close_options ,
+    "exit_game":exit_game ,
+    "host_lobby":start_host_lobby ,
+    "join_lobby":join_host_lobby ,
+    "start_multiplayer":host_start_multiplayer_match ,
+    "leave_lobby":lambda :[stop_multiplayer_network (),show_multiplayer_menu ()],
+    "set_music":set_music_vol ,
+    "set_sfx":set_sfx_vol ,
+    "show_leaderboard":show_leaderboard_menu ,
+    "typewriter":typewriter_insert ,
+    "local_ip":get_local_ip ,
+    "port":lambda :MULTIPLAYER_PORT ,
+    },
+    TEXT_WIDTH ,
+    START_INDEX ,
+    PREFIX_SPACES ,
+    MULTIPLAYER_RULES ,
+    )
+    view .build_root ()
     try :
-        img_bg =Image .open (image_path ("room.png")).resize ((layout .screen_w ,layout .screen_h ))
-        assets .bg_photo =ImageTk .PhotoImage (img_bg )
-        table_h =int (layout .screen_h *0.25 )
-        img_table =Image .open (image_path ("table.png")).resize ((layout .screen_w ,table_h ))
-        assets .table_photo =ImageTk .PhotoImage (img_table )
-        img_monitor =Image .open (image_path ("screen.png")).resize ((layout .monitor_w ,layout .monitor_h ))
-        assets .monitor_photo =ImageTk .PhotoImage (img_monitor )
-        try :
-            orig_kb =Image .open (image_path ("kb.png"))
-            orig_kw ,orig_kh =orig_kb .size 
-            kb_w =int (layout .screen_w *0.35 )
-            kb_h =int (kb_w *(orig_kh /orig_kw ))
-            img_kb =orig_kb .resize ((kb_w ,kb_h ))
-            assets .kb_photo =ImageTk .PhotoImage (img_kb )
-        except Exception as e :print (f"鍵盤圖片載入失敗 (kb.png): {e }")
-
-        orig_clock =Image .open (image_path ("clock.png"))
-        orig_cw ,orig_ch =orig_clock .size 
-        clock_w =int (layout .screen_w *0.2 )
-        clock_h =int (clock_w *(orig_ch /orig_cw ))
-        img_clock =orig_clock .resize ((clock_w ,clock_h ))
-        assets .clock_photo =ImageTk .PhotoImage (img_clock )
-
-        orig_rank =Image .open (image_path ("rank.png"))
-        orig_rw ,orig_rh =orig_rank .size 
-        rank_w =int (layout .screen_w *0.15 )
-        rank_h =int (rank_w *(orig_rh /orig_rw ))
-        img_rank =orig_rank .resize ((rank_w ,rank_h ))
-        assets .rank_photo =ImageTk .PhotoImage (img_rank )
-        layout .rank_font_size =int (rank_h *0.55 )
-        assets .rank_text_photo =create_rotated_text_image (str (game .player_id ),layout .rank_font_size ,"#1a1a1a",-10 ,font_file ="timesbd.ttf")
-
-        try :
-            orig_blood =Image .open (image_path ("dead.png")).convert ("RGB")
-            assets .img_blood =orig_blood .resize ((layout .screen_w ,layout .screen_h ))
-            assets .dead_bg_photo =ImageTk .PhotoImage (assets .img_blood )
-        except Exception as e :
-            print (f"圖片載入失敗 (dead.png): {e }")
-            assets .img_blood =Image .new ("RGB",(layout .screen_w ,layout .screen_h ),(80 ,0 ,0 ))
-            assets .dead_bg_photo =ImageTk .PhotoImage (assets .img_blood )
-
-        assets .black_screen =Image .new ("RGB",(layout .screen_w ,layout .screen_h ),(0 ,0 ,0 ))
-
+        view .load_assets ()
     except Exception as e :
         print (f"圖片載入失敗，請確認檔名與路徑是否正確: {e }")
-
-    widgets .root .bind ("<Button-1>",handle_global_click )
-    widgets .root .bind ("<Escape>",handle_global_escape )
-
+    view .bind_root_events ()
     show_main_menu ()
     poll_network_events ()
-
     if widgets .menu_screen_text_window_id :
         try :widgets .main_canvas .itemconfigure (widgets .menu_screen_text_window_id ,state ="normal")
         except :pass 
-
     widgets .root .mainloop ()
