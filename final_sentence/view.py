@@ -205,16 +205,42 @@ class GameView:
             tags="feedback_hud",
         )
         if self.multiplayer.multiplayer_mode and self.multiplayer.remote_progress:
-            lines = [f"{name}: {percent:>5.1f}%" for name, percent in self.multiplayer.remote_progress.items()]
+            panel_x = self.layout.screen_w - 280
+            panel_y = max(90, self.layout.base_y + 10)
             self.widgets.main_canvas.create_text(
-                self.layout.screen_w - 120,
-                max(90, self.layout.base_y + 10),
-                text="\n".join(lines),
-                font=("Courier New", 14, "bold"),
-                fill="#72d477",
-                justify="right",
+                panel_x,
+                panel_y - 28,
+                text="OPPONENTS",
+                font=("Courier New", 13, "bold"),
+                fill="#FF8C00",
+                anchor="w",
                 tags="feedback_hud",
             )
+            for index, (name, percent) in enumerate(self.multiplayer.remote_progress.items()):
+                y = panel_y + index * 42
+                self.widgets.main_canvas.create_text(
+                    panel_x,
+                    y,
+                    text=str(name)[:14],
+                    font=("Courier New", 12, "bold"),
+                    fill="#d9d0c0",
+                    anchor="w",
+                    tags="feedback_hud",
+                )
+                bar_x = panel_x + 112
+                bar_w = 130
+                fill_w = int(bar_w * max(0, min(100, percent)) / 100)
+                self.widgets.main_canvas.create_rectangle(bar_x, y - 8, bar_x + bar_w, y + 8, fill="#111111", outline="#5a4a36", width=2, tags="feedback_hud")
+                self.widgets.main_canvas.create_rectangle(bar_x, y - 8, bar_x + fill_w, y + 8, fill="#72d477", outline="", tags="feedback_hud")
+                self.widgets.main_canvas.create_text(
+                    bar_x + bar_w + 8,
+                    y,
+                    text=f"{percent:>5.1f}%",
+                    font=("Courier New", 11, "bold"),
+                    fill="#72d477",
+                    anchor="w",
+                    tags="feedback_hud",
+                )
 
     def update_clock_display(self):
         # Update the tilted desk clock text.
@@ -346,7 +372,7 @@ class GameView:
         self.create_canvas_button(self.layout.screen_w * 0.25, self.layout.screen_h * 0.40, btn_width, btn_height, "Single Player", self.callbacks["single_player"], ui_tag="menu_btn")
         self.create_canvas_button(self.layout.screen_w * 0.25, self.layout.screen_h * 0.51, btn_width, btn_height, "Multiplayer", self.callbacks["show_multiplayer_menu"], ui_tag="menu_btn")
         self.create_canvas_button(self.layout.screen_w * 0.25, self.layout.screen_h * 0.62, btn_width, btn_height, "Missions", self.callbacks["show_missions"], ui_tag="menu_btn")
-        self.create_canvas_button(self.layout.screen_w * 0.25, self.layout.screen_h * 0.73, btn_width, btn_height, "Leaderboard", self.callbacks["show_leaderboard"], ui_tag="menu_btn")
+        self.create_canvas_button(self.layout.screen_w * 0.25, self.layout.screen_h * 0.73, btn_width, btn_height, "Record", self.callbacks["show_leaderboard"], ui_tag="menu_btn")
         self.create_canvas_button(self.layout.screen_w * 0.25, self.layout.screen_h * 0.84, btn_width, btn_height, "Options", lambda: self.callbacks["show_options"]("main"), ui_tag="menu_btn")
         self.create_canvas_button(self.layout.screen_w * 0.25, self.layout.screen_h * 0.92, btn_width, btn_height, "Exit", self.callbacks["exit_game"], ui_tag="menu_btn")
 
@@ -388,7 +414,7 @@ class GameView:
 
     def show_multiplayer_menu(self):
         # Render the multiplayer menu and rules.
-        self.widgets.main_canvas.delete("menu_btn", "multiplayer_ui")
+        self.widgets.main_canvas.delete("menu_btn", "multiplayer_ui", "lobby_ui")
         self._hide_menu_monitor()
         cx = self.layout.screen_w * 0.25
         self.widgets.main_canvas.create_text(cx, self.layout.screen_h * 0.38, text="MULTIPLAYER", font=("Courier New", 42, "bold"), fill="#FF8C00", tags="multiplayer_ui")
@@ -424,11 +450,11 @@ class GameView:
             self.widgets.main_canvas.itemconfigure(self.multiplayer.multiplayer_status_text_id, text=status)
 
     def show_leaderboard_menu(self, rows):
-        # Render the local leaderboard scene.
+        # Render the local record scene.
         self.widgets.main_canvas.delete("menu_btn", "leaderboard_ui")
         self._hide_menu_monitor()
         cx = self.layout.screen_w * 0.25
-        self.widgets.main_canvas.create_text(cx, self.layout.screen_h * 0.30, text="LEADERBOARD", font=("Courier New", 42, "bold"), fill="#FF8C00", tags="leaderboard_ui")
+        self.widgets.main_canvas.create_text(cx, self.layout.screen_h * 0.30, text="RECORD", font=("Courier New", 42, "bold"), fill="#FF8C00", tags="leaderboard_ui")
         if rows:
             lines = [" Rank Player        Result COMP   WPM  Date", " ----------------------------------------------"]
             for index, row in enumerate(rows, 1):

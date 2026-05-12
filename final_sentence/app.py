@@ -91,6 +91,7 @@ multiplayer .network_queue =queue .Queue ()
 multiplayer .pending_article_indices =None 
 multiplayer .multiplayer_status_text_id =None 
 multiplayer .match_finished =False 
+multiplayer .host_alive =True 
 
 stats .total_chars_typed =0 
 stats .total_mistakes =0 
@@ -99,6 +100,7 @@ stats .article_chars =0
 stats .article_mistakes =0 
 stats .wpm_list =[]
 stats .acc_list =[]
+stats .completion_list =[]
 
 game .loading_progress =0 
 game .scroll_job =None 
@@ -179,6 +181,25 @@ def stop_multiplayer_network ():
     multiplayer .server_socket =None 
     multiplayer .client_threads =[]
     multiplayer .is_host =False 
+    multiplayer .multiplayer_mode =False 
+    multiplayer .remote_progress ={}
+
+def ask_modal_string (title ,prompt ,initialvalue =""):
+# Ask for text while keeping dialogs above the fullscreen root.
+    try :
+        widgets .root .update_idletasks ()
+        widgets .root .lift ()
+        widgets .root .focus_force ()
+        was_topmost =widgets .root .attributes ("-topmost")
+        widgets .root .attributes ("-topmost",True )
+        try :
+            answer =simpledialog .askstring (title ,prompt ,initialvalue =initialvalue ,parent =widgets .root )
+        finally :
+            widgets .root .attributes ("-topmost",was_topmost )
+        widgets .root .focus_force ()
+        return answer 
+    except Exception :
+        return simpledialog .askstring (title ,prompt ,initialvalue =initialvalue )
 
 def broadcast_to_clients (payload ):
 # Send a payload to all connected clients.
@@ -200,6 +221,8 @@ def host_accept_loop ():
                 if msg .get ("type")=="hello":
                     client_ref ["name"]=msg .get ("name",client_ref ["name"])
                     queue_network_event ({"type":"lobby_update"})
+                elif msg .get ("type")=="progress":
+                    queue_network_event ({"type":"progress","name":client_ref ["name"],"percent":msg .get ("percent",0.0 )})
                 elif msg .get ("type")in ("finished","dead"):
                     queue_network_event ({"type":"remote_result","name":client_ref ["name"],"result":msg .get ("type")})
             threading .Thread (target =read_json_lines ,args =(sock ,on_message ),daemon =True ).start ()
@@ -216,7 +239,7 @@ def client_listen_loop (sock ):
 def start_host_lobby ():
 # Create a multiplayer host lobby.
     stop_multiplayer_network ()
-    name =simpledialog .askstring ("Host Multiplayer","Your player name:",initialvalue ="Host")
+    name =ask_modal_string ("Host Multiplayer","Your player name:","Host")
     if not name :return 
     multiplayer .player_name =name 
     multiplayer .multiplayer_mode =True 
@@ -236,9 +259,9 @@ def start_host_lobby ():
 def join_host_lobby ():
 # Connect to a multiplayer host lobby.
     stop_multiplayer_network ()
-    name =simpledialog .askstring ("Join Multiplayer","Your player name:",initialvalue ="Player")
+    name =ask_modal_string ("Join Multiplayer","Your player name:","Player")
     if not name :return 
-    host_ip =simpledialog .askstring ("Join Multiplayer","Host IP:",initialvalue ="127.0.0.1")
+    host_ip =ask_modal_string ("Join Multiplayer","Host IP:","127.0.0.1")
     if not host_ip :return 
     multiplayer .player_name =name 
     multiplayer .multiplayer_mode =True 
@@ -258,6 +281,7 @@ def host_start_multiplayer_match ():
     if not multiplayer .is_host :return 
     multiplayer .pending_article_indices =random .sample (range (len (PREDEFINED_TEXTS )),5 )
     multiplayer .match_finished =False 
+    multiplayer .host_alive =True 
     multiplayer .remote_progress ={}
     for client in multiplayer .connected_clients :
         client ["alive"]=True 
@@ -268,12 +292,49 @@ def notify_multiplayer_result (result ):
 # Report this player result to the match.
     if not multiplayer .multiplayer_mode or multiplayer .match_finished :
         return 
-    multiplayer .match_finished =True 
     payload ={"type":result ,"name":multiplayer .player_name }
     if multiplayer .is_host :
-        broadcast_to_clients ({"type":"match_result","winner":multiplayer .player_name if result =="finished"else None ,"reason":result })
+        if result =="finished":
+            finish_multiplayer_match (multiplayer .player_name ,"finished")
+        else :
+            multiplayer .host_alive =False 
+            broadcast_to_clients ({"type":"player_state","name":multiplayer .player_name ,"alive":False ,"reason":"dead"})
+            resolve_multiplayer_survivors ()
     elif multiplayer .host_socket :
         send_json (multiplayer .host_socket ,payload )
+
+def alive_multiplayer_names ():
+# Return alive players from the host perspective.
+    names =[]
+    if multiplayer .host_alive :
+        names .append (multiplayer .player_name )
+    for client in multiplayer .connected_clients :
+        if client .get ("alive",True ):
+            names .append (client .get ("name","Player"))
+    return names 
+
+def finish_multiplayer_match (winner ,reason ):
+# Broadcast and apply the authoritative multiplayer winner.
+    if multiplayer .match_finished :
+        return 
+    multiplayer .match_finished =True 
+    broadcast_to_clients ({"type":"match_result","winner":winner ,"reason":reason })
+    if not game .game_active :
+        return 
+    if winner ==multiplayer .player_name :
+        game_win ()
+    else :
+        game_over ()
+
+def resolve_multiplayer_survivors ():
+# End the match once only one or zero players remain alive.
+    if not multiplayer .is_host or multiplayer .match_finished :
+        return 
+    alive_names =alive_multiplayer_names ()
+    if len (alive_names )==1 :
+        finish_multiplayer_match (alive_names [0 ],"last_survivor")
+    elif len (alive_names )==0 :
+        finish_multiplayer_match (None ,"no_survivors")
 
 def handle_network_event (event ):
 # Apply a network event to the UI state.
@@ -285,33 +346,50 @@ def handle_network_event (event ):
     elif event_type =="start":
         multiplayer .pending_article_indices =event .get ("article_indices")
         multiplayer .match_finished =False 
+        multiplayer .host_alive =True 
         multiplayer .remote_progress ={}
         play_btn_clicked (is_multiplayer_start =True )
     elif event_type =="progress":
+        if multiplayer .match_finished :
+            return 
         if event .get ("name")!=multiplayer .player_name :
             multiplayer .remote_progress [event .get ("name","Player")]=event .get ("percent",0.0 )
             update_hud ()
+        if multiplayer .is_host :
+            broadcast_to_clients (event )
     elif event_type =="remote_result":
+        if multiplayer .match_finished :
+            return 
         name =event .get ("name","Player")
         result =event .get ("result")
         if result =="finished":
-            broadcast_to_clients ({"type":"match_result","winner":name ,"reason":"finished"})
-            if game .game_active :
-                game_over ()
+            finish_multiplayer_match (name ,"finished")
         elif result =="dead":
             for client in multiplayer .connected_clients :
                 if client ["name"]==name :
                     client ["alive"]=False 
             multiplayer .remote_progress .pop (name ,None )
-            if game .game_active and multiplayer .connected_clients and all (not client .get ("alive",True )for client in multiplayer .connected_clients ):
-                game_win ()
+            broadcast_to_clients ({"type":"player_state","name":name ,"alive":False ,"reason":"dead"})
+            update_hud ()
+            resolve_multiplayer_survivors ()
+    elif event_type =="player_state":
+        if event .get ("name")!=multiplayer .player_name and not event .get ("alive",True ):
+            multiplayer .remote_progress .pop (event .get ("name","Player"),None )
+            update_hud ()
     elif event_type =="match_result":
+        if multiplayer .match_finished :
+            return 
+        multiplayer .match_finished =True 
         winner =event .get ("winner")
-        if winner and winner !=multiplayer .player_name and game .game_active :
-            widgets .main_canvas .create_text (layout .center_x ,int (layout .screen_h *0.08 ),text =f"{winner } has finished first.",font =("Courier New",24 ,"bold"),fill ="#ff4444",justify ="center",tags ="end_msg")
-            game_over ()
+        if game .game_active :
+            if winner ==multiplayer .player_name :
+                game_win ()
+            else :
+                if winner :
+                    widgets .main_canvas .create_text (layout .center_x ,int (layout .screen_h *0.08 ),text =f"{winner } has won.",font =("Courier New",24 ,"bold"),fill ="#ff4444",justify ="center",tags ="end_msg")
+                game_over ()
     elif event_type =="connection_closed":
-        if multiplayer .multiplayer_mode and game .in_menu :
+        if multiplayer .multiplayer_mode and game .in_menu and not multiplayer .match_finished and not game .can_exit :
             show_waiting_lobby ("Connection closed.\nReturn to menu and try again.")
 
 def record_article_stats ():
@@ -471,7 +549,6 @@ def broadcast_progress_update ():
     payload ={"type":"progress","name":multiplayer .player_name ,"percent":round (compute_progress_percent (),1 )}
     if multiplayer .is_host :
         handle_network_event (payload )
-        broadcast_to_clients (payload )
     elif multiplayer .host_socket :
         send_json (multiplayer .host_socket ,payload )
 
@@ -891,7 +968,7 @@ def calculate_rank(completion_rate, avg_wpm, total_mistakes, status_type):
     return "C"
 
 def save_leaderboard_result(status_type):
-    # Save the current finished match into the local leaderboard.
+    # Save the current finished match into the local record.
     if game.leaderboard_saved:
         return
     summary = get_match_summary()
@@ -1121,7 +1198,7 @@ def show_waiting_lobby (status ):
     view .show_waiting_lobby (status )
 
 def show_leaderboard_menu():
-    # Display the saved local leaderboard.
+    # Display the saved local record.
     view .show_leaderboard_menu (leaderboard .top_entries (8 ))
 
 def show_missions_menu():

@@ -1,4 +1,4 @@
-"""Local leaderboard storage for completed matches."""
+"""Local record storage for completed matches."""
 
 import json
 from dataclasses import asdict, dataclass
@@ -9,7 +9,7 @@ from .paths import BASE_DIR
 
 @dataclass
 class LeaderboardEntry:
-    """One saved leaderboard result."""
+    """One saved local record result."""
 
     player: str
     result: str
@@ -23,14 +23,14 @@ class LeaderboardEntry:
 
 
 class LeaderboardStore:
-    """Persist and rank match results in a JSON file."""
+    """Persist and rank local match results in a JSON file."""
 
     def __init__(self, path=None):
-        # Prepare the leaderboard path.
+        # Prepare the local record path.
         self.path = path or BASE_DIR / "data" / "leaderboard.json"
 
     def load(self):
-        # Load all saved leaderboard rows.
+        # Load all saved local record rows.
         if not self.path.exists():
             return []
         try:
@@ -39,14 +39,14 @@ class LeaderboardStore:
             return []
 
     def save_entry(self, entry):
-        # Append a new result to the leaderboard file.
+        # Append a new result to the local record file.
         self.path.parent.mkdir(parents=True, exist_ok=True)
         rows = self.load()
         rows.append(asdict(entry))
         self.path.write_text(json.dumps(rows, indent=2), encoding="utf-8")
 
     def top_entries(self, limit=8):
-        # Return leaderboard rows sorted by result, speed, and accuracy.
+        # Return record rows sorted by result, completion, and speed.
         rows = self.load()
         rows.sort(
             key=lambda row: (
@@ -63,7 +63,7 @@ class LeaderboardStore:
 
 
 def create_entry(player, result, completion_rate, avg_wpm, max_wpm, chars, mistakes, roulettes):
-    # Build a leaderboard entry from match stats.
+    # Build a local record entry from match stats.
     return LeaderboardEntry(
         player=player or "Player",
         result=result,

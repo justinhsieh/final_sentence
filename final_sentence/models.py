@@ -79,6 +79,7 @@ class MultiplayerState:
     pending_article_indices: list = None
     multiplayer_status_text_id: object = None
     match_finished: bool = False
+    host_alive: bool = True
     remote_progress: dict = field(default_factory=dict)
 
 
