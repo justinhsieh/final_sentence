@@ -1,9 +1,4 @@
-# Final Sentence (終極判決) ⚖️💀
-
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/)
-[![GUI Framework](https://img.shields.io/badge/GUI-Tkinter-lightgrey.svg)](https://docs.python.org/3/library/tkinter.html)
-[![Audio Library](https://img.shields.io/badge/Audio-Pygame.mixer-red.svg)](https://www.pygame.org/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+# Final Sentence (終極判決)
 
 **Final Sentence** 是一款將「極限打字」與「俄羅斯輪盤 (Russian Roulette)」完美融合的高壓生存打字遊戲。
 在這裡，打字不只是精準度的考驗，更是一場關乎生死的賭局。在每關 240 秒的緊迫倒數與無情敲擊聲中，任何一次手滑、錯字都可能將你推向左輪手槍的槍口。
@@ -12,7 +7,7 @@
 
 ---
 
-## 🎮 核心遊戲機制 (Gameplay Mechanics)
+##核心遊戲機制 (Gameplay Mechanics)
 
 1. **五重極限審判**：
    * 玩家必須在單場遊戲中，連續正確輸入 **5 篇預設或自訂文本**。
