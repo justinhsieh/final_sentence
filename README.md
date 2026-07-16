@@ -33,7 +33,8 @@
 
 ```text
 .
-├── app/
+├── final.py
+├── final_sentence/
 │   ├── __init__.py
 │   ├── app.py              # 核心 Controller：初始化、遊戲主循環與核心業務邏輯
 │   ├── view.py             # View 層：Tkinter 全螢幕畫布動態 HUD 渲染與轉場動畫
@@ -85,15 +86,10 @@
 pip install Pillow pygame
 ```
 
-### 3. 下載與準備靜態資源 (Assets)
-請確保專案根目錄下有 `assets/` 資料夾，並包含以下靜態資源：
-* **`assets/images/`**: `room.png`, `table.png`, `screen.png`, `kb.png`, `clock.png`, `rank.png`, `dead.png`
-* **`assets/audio/`**: `bgm.mp3`, `type.wav`, `wrong.wav`, `spin.wav`, `click.wav`, `shoot.wav`, `tick.wav`
-
 ### 4. 執行遊戲
 在專案根目錄，透過 Python 模組方式啟動主程式：
 ```bash
-python -m app.app
+python -m final.py
 ```
 
 ---
