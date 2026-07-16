@@ -86,7 +86,7 @@
 pip install Pillow pygame
 ```
 
-### 4. 執行遊戲
+### 3. 執行遊戲
 在專案根目錄，透過 Python 模組方式啟動主程式：
 ```bash
 python -m final.py
@@ -121,40 +121,7 @@ python -m final.py
 
 ---
 
-## ⚙️ 二次開發指南 (Developer Guide)
 
-### 如何擴充自訂文本庫？
-你可以在 `app/texts.py` 中的 `PREDEFINED_TEXTS` 清單中自由添加或編輯文本。
-系統會自動在加載時處理縮排格式化：
-
-```python
-# app/texts.py
-PREDEFINED_TEXTS = [
-    # 在這裡新增你想要的段落
-    "This is a custom typing paragraph.\nTry to type this as fast as possible.\nAnd survive the trial!\n",
-]
-```
-
-### 任務定義結構
-如果你想自訂新任務，可以直接修改 `app/missions.py` 中的 `MISSION_DEFS`：
-```python
-{
-    "id": "new_challenge",
-    "title": "完美主義者",
-    "description": "單場打字錯誤次數小於 2 次通關。",
-    "target": 1,
-    "metric": "perfect_runs",
-}
-```
-
----
-
-## 📜 授權條款 (License)
-
-本專案基於 **MIT License** 授權開源。歡迎任何形式的 Fork、修改與教學使用。
-
----
-
-### ⚠️ 溫馨提醒
+### ⚠️ 提醒
 * **全螢幕限制**：本遊戲啟動後會預設開啟全螢幕模式，您可以隨時在遊戲中按下 `Esc` 鍵開啟選單返回桌面，或者點擊畫面任何位置安全退出。
 * **音樂設定**：遊戲音量預設為 100%。如果覺得音效過於震撼，可以點擊 `Options` 對背景音樂 (Music) 與音效 (Sound) 進行無段式拖曳調整。
