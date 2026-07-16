@@ -1,6 +1,6 @@
-# Final Sentence (終極判決)
+# Final Sentence
 
-**Final Sentence** 是一款將「極限打字」與「俄羅斯輪盤 (Russian Roulette)」完美融合的高壓生存打字遊戲。
+**Final Sentence** 是一款將「打字大逃殺」與「俄羅斯輪盤 (Russian Roulette)」完美融合的高壓生存打字遊戲。
 在這裡，打字不只是精準度的考驗，更是一場關乎生死的賭局。在每關 240 秒的緊迫倒數與無情敲擊聲中，任何一次手滑、錯字都可能將你推向左輪手槍的槍口。
 
 本專案採用類似 **MVC (Model-View-Controller) 的架構設計**，並原生支援 **區域網路 (LAN) 多人即時連線對戰**、**持久化本地任務系統**與**排行榜系統**。
